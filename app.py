@@ -1,61 +1,48 @@
-from flask import Flask, render_template, request, redirect, url_for
-import sqlite3, os
+import streamlit as st
+import sqlite3
 
-app = Flask(__name__)
+# ---------- Database Setup ----------
+conn = sqlite3.connect('students.db')
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS students (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        roll TEXT NOT NULL,
+        dept TEXT NOT NULL,
+        year TEXT NOT NULL
+    )
+''')
+conn.commit()
 
-# ---------- Database Path ----------
-DB_PATH = os.path.join(os.path.dirname(__file__), "students.db")
+# ---------- Streamlit UI ----------
+st.title("🎓 Student Registration System")
 
-# ---------- Initialize Database ----------
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            roll TEXT NOT NULL,
-            dept TEXT NOT NULL,
-            year TEXT NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+menu = ["Register", "View Students"]
+choice = st.sidebar.selectbox("Menu", menu)
 
-# ---------- Routes ----------
-@app.route('/')
-def home():
-    return redirect(url_for('register'))
+if choice == "Register":
+    st.subheader("Register New Student")
+    name = st.text_input("Name")
+    roll = st.text_input("Roll Number")
+    dept = st.text_input("Department")
+    year = st.text_input("Year")
+    if st.button("Register"):
+        if name and roll and dept and year:
+            cursor.execute("INSERT INTO students (name, roll, dept, year) VALUES (?, ?, ?, ?)",
+                           (name, roll, dept, year))
+            conn.commit()
+            st.success(f"✅ {name} registered successfully!")
+        else:
+            st.warning("Please fill all fields.")
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        name = request.form['name']
-        roll = request.form['roll']
-        dept = request.form['dept']
-        year = request.form['year']
-
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO students (name, roll, dept, year) VALUES (?, ?, ?, ?)",
-            (name, roll, dept, year)
-        )
-        conn.commit()
-        conn.close()
-        return redirect(url_for('view_students'))
-
-    return render_template('register.html')
-
-@app.route('/view')
-def view_students():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+elif choice == "View Students":
+    st.subheader("📋 Registered Students")
     cursor.execute("SELECT * FROM students")
-    students = cursor.fetchall()
-    conn.close()
-    return render_template('view.html', students=students)
+    data = cursor.fetchall()
+    if data:
+        st.table(data)
+    else:
+        st.info("No students registered yet.")
 
-if __name__ == '__main__':
-    init_db()
-    app.run(debug=True)
+conn.close()
